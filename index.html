@@ -71,6 +71,15 @@ label{font-size:13px;color:var(--muted);display:block;margin:0 0 3px}
 .hist b{color:var(--ink);font-size:20px}
 .review{max-width:760px;margin:10px auto;text-align:left;border-collapse:collapse;width:100%;font-size:20px}
 .review td{border:1px solid var(--line);padding:8px}
+.wbox{width:100%;max-width:820px;min-height:280px;font-size:22px;line-height:1.5;font-family:Verdana,Arial,sans-serif;border:2px solid var(--line);border-radius:12px;padding:12px}
+.wtext{text-align:left;font-size:18px;line-height:1.55;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-family:Verdana,Arial,sans-serif}
+.wtext mark{background:#fff3a0;padding:0 2px;border-radius:3px}
+.wtext .err{background:var(--badbg);color:var(--bad);font-weight:700;text-decoration:underline}
+.wcheck{list-style:none;padding:0;margin:8px 0;text-align:left}
+.wcheck li{padding:3px 0}
+.lvbar{display:flex;gap:8px;justify-content:center;align-items:center;margin:0 0 12px;font-size:20px}
+.lvbar button{font-size:20px;padding:6px 16px}
+.slipinfo{display:none}
 .tlink{position:fixed;right:10px;bottom:10px;font-size:13px;padding:4px 10px;opacity:.6}
 
 /* ---------- teacher ---------- */
@@ -108,6 +117,11 @@ td.ok{background:var(--goodbg)}td.no{background:var(--badbg)}
 @media print{
   body{background:#fff;font-size:11pt}
   #tm header,aside,.noprint,.toast,#lm{display:none!important}
+  body.plm #lm{display:block!important;padding:0}
+  body.plm #lm button,body.plm .faces{display:none!important}
+  body.plm .slipinfo{display:block}
+  body.plm #tm{display:none!important}
+  mark,.err,.review td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .wrap{display:block;padding:0}
   .page{border:none;border-radius:0;padding:0;margin:0;max-width:none;page-break-after:always}
   .page:last-child{page-break-after:auto}
@@ -256,6 +270,33 @@ const TASKS={
  signs:{title:'Signs',icon:'🪧',target:'I can understand everyday signs.',levels:'E1–E2',
   gen(lv,n){return pickN(SIGNS,n).map(([w,bg,fg,m])=>({key:w,type:'choose',q:`Sign: ${w}`,show:`<span class="sign" style="background:${bg};color:${fg};border-color:${bg==='#e0b100'?'#1c2433':bg}">${w}</span>`,prompt:'What does this sign mean?',options:fillOpts(m,SIGNS.map(x=>x[3]),()=>m),answer:m}))}}
 };
+/* ---------- open writing (auto-checked features + teacher mark) ---------- */
+const WRITE={
+ E1:{min:25,avg:15,nl:1,sn:3,link:['and','but','because','then'],ps:['Write about you. Write your name, where you are from, where you live and what you like.','Write about your family. Who is in your family? What do they do?','Write about your day. What do you do in the morning, afternoon and evening?','Write about your home. Where is it? What rooms are there? What do you like about it?']},
+ E2:{min:50,avg:20,nl:2,sn:5,link:['and','but','because','so','then','also','after that'],ps:['Write an email to a friend about what you did last weekend.','Write an email to a friend about your English class. When is it? Who is in it? What do you like about it?','Write about a festival or celebration in your country. What do people do?','Write an email to a friend about a trip you went on. Where did you go and what did you do?']},
+ E3:{min:80,avg:25,nl:3,para:2,link:['because','so','although','however','also','but','when','if','first','then','finally','after that','for example'],ps:['Write an email to your teacher. You cannot come to class next week. Say why, and ask what work you can do at home.','Write a review of a park, shop or café in Hackney. Describe it and say if you recommend it.','Write an email to your landlord about a problem in your home. Describe the problem and ask for help.','Write about a person who is important to you. Who are they and why are they important?']},
+ L1:{min:130,avg:30,nl:3,para:3,link:['however','therefore','in addition','furthermore','moreover','on the other hand','although','whereas','as a result','in conclusion','firstly','finally','for example','because'],ps:['Write an article for the college magazine: “The best and worst things about living in London”.','Write a formal email of complaint to a shop about a product that broke after one week. Explain what happened and what you want them to do.','Write a report for the college about how to make the classrooms better for students. Give at least two ideas, with reasons.','Write an email applying for a volunteer job at a community centre. Describe your skills and experience.']}};
+const wcount=t=>(String(t||'').match(/[A-Za-z’']+/g)||[]).length;
+function writeCheck(text,lv){const W=WRITE[lv]||WRITE.E1,t=String(text||'').trim(),words=wcount(t);
+ const sents=t.split(/(?<=[.?!])\s+|\n+/).map(x=>x.trim()).filter(x=>/[A-Za-z]/.test(x));
+ const capOk=sents.length>0&&sents.every(x=>/^[^A-Za-z]*[A-Z]/.test(x))&&!/(^|\s)i(?=[\s'’]|$)/.test(t);
+ const lines=t.split(/\n/).map(x=>x.trim()).filter(x=>wcount(x)>=6);
+ const endOk=lines.length>0&&lines.every(x=>/[.?!]["”')]?$/.test(x))&&words/Math.max(1,(t.match(/[.?!](\s|$)/g)||[]).length)<=W.avg;
+ const low=' '+t.toLowerCase().replace(/[’]/g,"'").replace(/[^a-z' ]+/g,' ').replace(/\s+/g,' ')+' ';
+ const used=W.link.filter(w=>low.includes(' '+w+' '));
+ const paras=t.split(/\n/).filter(x=>wcount(x)>=6).length;
+ const checks=[{l:`At least ${W.min} words`,ok:words>=W.min,d:`${words} words`},
+  {l:'Every sentence starts with a capital letter (and “I” is a capital)',ok:capOk},
+  {l:'Sentences end with . ? or ! (not too long)',ok:endOk},
+  {l:`Uses ${W.nl>1?W.nl+' different':'a'} linking word${W.nl>1?'s':''} (${W.link.slice(0,5).join(', ')}…)`,ok:used.length>=W.nl,d:used.join(', ')||'none'},
+  W.para?{l:`At least ${W.para} paragraphs`,ok:paras>=W.para,d:`${paras}`}:{l:`At least ${W.sn} sentences`,ok:sents.length>=W.sn,d:`${sents.length}`}];
+ let h=esc(t).replace(/(^|[.?!]\s+|\n[ \t]*)([a-z])/g,'$1<span class="err">$2</span>').replace(/(^|\s)(i)(?=[\s&]|$)/g,'$1<span class="err">$2</span>');
+ const re=new RegExp('\\b('+W.link.map(w=>w.replace(/ /g,'\\s+')).join('|')+')\\b','gi');h=h.replace(/(<[^>]+>)|([^<]+)/g,(m,tag,txt)=>tag?tag:txt.replace(re,'<mark>$1</mark>'));
+ return{checks,score:checks.filter(c=>c.ok).length,max:5,html:h.replace(/\n/g,'<br>')}}
+function writeBlock(text,lv,big){const w=writeCheck(text,lv);return`<div class="wtext" ${big?'style="font-size:20px"':''}>${w.html||'<i>(nothing written)</i>'}</div><ul class="wcheck">${w.checks.map(c=>`<li>${c.ok?'✔':'✘'} ${esc(c.l)}${c.d?` <span class="note">(${esc(c.d)})</span>`:''}</li>`).join('')}</ul><p class="note" style="margin:0"><mark style="background:#fff3a0">yellow</mark> = linking words · <span style="color:var(--bad);font-weight:700;text-decoration:underline">red</span> = missing capital letter</p>`}
+TASKS.write={title:'Writing',icon:'📝',target:'I can write a short text with correct capital letters, full stops and linking words.',levels:'E1–L1',
+ gen(lv){const W=WRITE[lv]||WRITE.E1,p=W.ps[rnd(0,W.ps.length-1)];return[{key:p,type:'write',q:p,prompt:esc(p)+`<div class="note" style="font-size:18px;margin-top:6px">Write at least <b>${W.min}</b> words.</div>`,min:W.min,answer:''}]}};
+TASKS.days.only=['E1','E2'];TASKS.signs.only=['E1','E2'];
 /* custom task lines → items */
 function customGen(c,n){const lines=String(c.lines||'').split('\n').map(s=>s.trim()).filter(Boolean);
  return pickN(lines,n).map(L=>{const p=L.split('|').map(s=>s.trim());
@@ -290,31 +331,38 @@ function lHome(name){
 function lTasks(){
  const ids=allTasks().filter(id=>TASKS[id]||(taskInfo(id).custom.lines||'').trim());
  const l=byName(R.name);const mine=l?l.targets.map(t=>t.task).filter(Boolean):[];
- const sorted=[...ids.filter(i=>mine.includes(i)),...ids.filter(i=>!mine.includes(i))];
+ if(!R.level){const la=l&&l.attempts.slice().sort((a,b)=>a.date<b.date?1:-1)[0];R.level=(la&&la.level)||S.cls.level}
+ const lv=R.level,okLv=id=>TASKS[id]?(!TASKS[id].only||TASKS[id].only.includes(lv)):taskInfo(id).custom.level===lv;
+ const vis=ids.filter(okLv),sorted=[...vis.filter(i=>mine.includes(i)),...vis.filter(i=>!mine.includes(i))];
  lm.innerHTML=`<div class="lbar"><button id="lBackHome">← Back</button><b style="font-size:22px">${esc(R.name)}</b>${logoHTML}</div>
- <div class="lwrap"><h2>Choose a task</h2><div class="tgrid">${sorted.map(id=>{const t=taskInfo(id),n=l?l.attempts.filter(a=>a.task===id).length:0;return`<button class="tcard" data-task="${id}" ${mine.includes(id)?'style="border-color:var(--brand)"':''}><em>${t.icon}</em>${esc(t.title)}${mine.includes(id)?'<small>⭐ My target</small>':''}${n?`<small>Done ${n}×</small>`:''}</button>`}).join('')}</div></div>`}
+ <div class="lwrap"><div class="lvbar">My level: ${LEVELS.map(x=>`<button data-lv="${x}" class="${x===lv?'pri':''}">${x}</button>`).join('')}</div><h2>Choose a task</h2><div class="tgrid">${sorted.map(id=>{const t=taskInfo(id),n=l?l.attempts.filter(a=>a.task===id).length:0;return`<button class="tcard" data-task="${id}" ${mine.includes(id)?'style="border-color:var(--brand)"':''}><em>${t.icon}</em>${esc(t.title)}${mine.includes(id)?'<small>⭐ My target</small>':''}${n?`<small>Done ${n}×</small>`:''}</button>`}).join('')}</div></div>`}
 function lMode(id){const t=taskInfo(id);
  lm.innerHTML=`<div class="lbar"><button id="lBackTasks">← Back</button><b style="font-size:22px">${esc(R.name)}</b>${logoHTML}</div>
  <div class="lwrap"><div style="font-size:70px">${t.icon}</div><h2>${esc(t.title)}</h2><p style="font-size:22px">${esc(t.target)}</p>
  <div class="flexbar" style="justify-content:center;gap:18px;margin-top:20px">
  <button class="big" data-mode="practice" data-t="${id}">🔁 Practise<br><small style="font-size:16px">Answers show at once</small></button>
  <button class="big pri" data-mode="check" data-t="${id}">✅ Check<br><small style="font-size:16px">Only when your teacher says</small></button></div></div>`}
-function lStart(id,mode){const items=makeItems(id,S.cls.level);if(!items.length){toast('This task has no questions yet');return}
+function lStart(id,mode){const items=makeItems(id,R.level||S.cls.level);if(!items.length){toast('This task has no questions yet');return}
  R={...R,task:id,mode,items,i:0,ans:[],t0:Date.now(),locked:false,orderPick:[]};lQ()}
 function lQ(){const it=R.items[R.i],t=taskInfo(R.task);R.locked=false;R.orderPick=[];
  const dots=R.items.map((x,k)=>`<span class="${k===R.i?'now':k<R.i?(R.mode==='practice'?(R.ans[k].ok?'ok':'no'):'done'):''}"></span>`).join('');
  let body='';
  if(it.type==='choose')body=`<div class="opts">${it.options.map(o=>`<button data-opt="${esc(o)}">${esc(o)}</button>`).join('')}</div>`;
  if(it.type==='type')body=`<input id="lAns" class="bigin" autocomplete="off" spellcheck="false" autocapitalize="off"><p><button class="pri big" id="lNext">Next ➜</button></p>`;
+ if(it.type==='write')body=`<textarea id="lWrite" class="wbox" spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea><div style="font-size:20px;margin:6px 0" id="wcnt">0 / ${it.min} words</div><p><button class="pri big" id="lNext">Finish ➜</button></p>`;
  if(it.type==='order')body=`<div class="wline" id="wline"></div><div class="wchips" id="wchips">${it.words.map((w,k)=>`<button data-w="${k}">${esc(w)}</button>`).join('')}</div><p><button class="pri big" id="lNext">Next ➜</button></p>`;
  lm.innerHTML=`<div class="lbar"><button id="lQuit">✖ Stop</button><b style="font-size:20px">${t.icon} ${esc(t.title)} · ${R.mode==='check'?'Check':'Practice'}</b>${logoHTML}</div>
  <div class="lwrap"><div class="dots">${dots}</div><div class="qbox">${it.show||''}<div class="qtext">${it.prompt}</div></div>${body}<div class="fb" id="fb"></div></div>`;
+ const wb=$('#lWrite');if(wb){wb.focus();wb.addEventListener('input',()=>{const n=wcount(wb.value);$('#wcnt').textContent=`${n} / ${it.min} words`;$('#wcnt').style.color=n>=it.min?'var(--good)':''})}
  const inp=$('#lAns');if(inp){inp.focus();inp.addEventListener('keydown',e=>{if(e.key==='Enter')lAnswer(inp.value)})}}
 function lRenderOrder(){const it=R.items[R.i];$('#wline').innerHTML=R.orderPick.map((k,p)=>`<button data-un="${p}">${esc(it.words[k])}</button>`).join('')+(R.orderPick.length===it.words.length?`<span>${esc(it.end)}</span>`:'');
  $('#wchips').querySelectorAll('button').forEach(b=>b.style.visibility=R.orderPick.includes(+b.dataset.w)?'hidden':'visible')}
 function lAnswer(val){if(R.locked)return;const it=R.items[R.i];
  if(it.type==='order'){if(R.orderPick.length<it.words.length){toast('Use all the words');return}val=R.orderPick.map(k=>it.words[k]).join(' ')+it.end}
  if(it.type==='type'&&!norm(val)){toast('Write your answer');return}
+ if(it.type==='write'){if(wcount(val)<3){toast('Write your text first');return}if(wcount(val)<it.min&&!confirm(`You have written ${wcount(val)} words. The task asks for ${it.min}. Finish anyway?`))return;
+  const w=writeCheck(val,R.level||S.cls.level);R.ans.push({ok:w.score>=4,a:val,w:w.score});R.locked=true;
+  if(R.mode==='practice'){$('#fb').innerHTML=`<div style="max-width:820px;margin:0 auto;font-size:20px">${writeBlock(val,R.level||S.cls.level,true)}</div><p><button class="pri big" id="lCont">Next ➜</button></p>`;$('#lCont').scrollIntoView()}else lNextQ();return}
  const ok=mark(it,val);R.ans.push({ok,a:val});R.locked=true;
  if(R.mode==='practice'){const fb=$('#fb');fb.className='fb '+(ok?'ok':'no');fb.innerHTML=ok?'✔ Correct!':`✘ The answer is: <b>${esc(it.answer)}</b>`;
   if(it.type==='choose')lm.querySelectorAll('[data-opt]').forEach(b=>{if(b.dataset.opt===it.answer)b.classList.add('right');else if(b.dataset.opt===val)b.classList.add('wrong')});
@@ -323,8 +371,9 @@ function lAnswer(val){if(R.locked)return;const it=R.items[R.i];
 function lNextQ(){R.i++;if(R.i<R.items.length)lQ();else if(R.mode==='check')lFeel();else lDone(null)}
 function lFeel(){lm.innerHTML=`<div class="lbar"><span></span><b style="font-size:20px">${esc(R.name)}</b>${logoHTML}</div><div class="lwrap"><h2>${esc(taskInfo(R.task).target)}</h2><p style="font-size:24px">How do you feel now?</p><div class="faces">${FACES.map((f,k)=>`<button data-feel="${k+1}"><em>${f[0]}</em>${f[1]}</button>`).join('')}</div></div>`}
 function lDone(feel){
- const score=R.ans.filter(a=>a.ok).length,max=R.items.length;
- const att={id:uid(),task:R.task,taskTitle:taskInfo(R.task).title,level:S.cls.level,mode:R.mode,date:new Date().toISOString(),secs:Math.round((Date.now()-R.t0)/1000),score,max,feel,
+ const isW=R.items[0].type==='write',lv=R.level||S.cls.level;
+ const score=isW?R.ans[0].w:R.ans.filter(a=>a.ok).length,max=isW?5:R.items.length;
+ const att={id:uid(),task:R.task,taskTitle:taskInfo(R.task).title,level:lv,auto:isW?score:undefined,mode:R.mode,date:new Date().toISOString(),secs:Math.round((Date.now()-R.t0)/1000),score,max,feel,
   items:R.items.map((it,k)=>({q:it.q,svg:it.svg||'',a:R.ans[k].a,c:it.answer,ok:R.ans[k].ok}))};
  let l=byName(R.name);if(!l){l=newLearner(R.name);S.learners.push(l)}
  if(!R.preview){l.attempts.push(att);saveNow()}
@@ -334,13 +383,14 @@ function lDone(feel){
  lm.innerHTML=`<div class="lbar"><span></span><b style="font-size:20px">${esc(R.name)}</b>${logoHTML}</div><div class="lwrap">
  <h2>${score===max?'Excellent!':score>=max*.6?'Well done!':'Good try!'} ${stars}</h2><div class="score">${score} / ${max}</div>
  ${R.mode==='check'&&checks.length>1?`<p style="font-size:22px">My checks:</p><div class="hist">${checks.map(a=>`<div><b>${a.score}/${a.max}</b><i style="height:${Math.max(6,a.score/a.max*120)}px;${a.id===att.id?'background:var(--good)':''}"></i>${shortDate(a.date)}</div>`).join('')}</div>`:''}
- <table class="review">${att.items.map(x=>`<tr><td style="width:44px;text-align:center;font-size:24px;background:${x.ok?'var(--goodbg)':'var(--badbg)'}">${x.ok?'✔':'✘'}</td><td>${x.svg?`<span class="mini">${x.svg}</span> `:''}${esc(x.a)}${x.ok?'':`<br><span style="color:var(--good)">➜ ${esc(x.c)}</span>`}</td></tr>`).join('')}</table>
+ <div class="slipinfo" style="font-size:18px;margin-bottom:8px"><b>${esc(R.name)}</b> · ${esc(att.taskTitle)} (${esc(lv)}) · ${R.mode==='check'?'Check':'Practice'} · ${ukDate(att.date)} ${new Date(att.date).toTimeString().slice(0,5)}${isW?`<br>Task: ${esc(att.items[0].q)}`:''}</div>
+ ${isW?`<div style="max-width:820px;margin:0 auto;font-size:20px">${writeBlock(att.items[0].a,lv,true)}</div><p class="note" style="font-size:16px">This is a computer check. Your teacher will also mark your writing.</p>`:`<table class="review">${att.items.map(x=>`<tr><td style="width:44px;text-align:center;font-size:24px;background:${x.ok?'var(--goodbg)':'var(--badbg)'}">${x.ok?'✔':'✘'}</td><td>${x.svg?`<span class="mini">${x.svg}</span> `:''}${esc(x.a)}${x.ok?'':`<br><span style="color:var(--good)">➜ ${esc(x.c)}</span>`}</td></tr>`).join('')}</table>`}
  <div class="flexbar" style="justify-content:center;margin-top:16px;gap:14px">
- ${R.mode==='check'&&!R.preview?(formLink(R.name,att)?'<button class="big pri" id="lForm">📨 Send to my teacher</button><button class="big" id="lSend">💾 Save file</button>':'<button class="big pri" id="lSend">💾 Save for my teacher</button>'):''}
+ ${R.mode==='check'&&!R.preview&&formLink(R.name,att)?'<button class="big pri" id="lForm">📨 Send to my teacher</button>':''}<button class="big" id="lPrint">🖨️ Print / save PDF</button>
  <button class="big" id="lAgain">🔁 Practise again</button><button class="big" id="lOther">Another task</button><button class="big" id="lFinish">Finish</button></div>
- ${R.mode==='check'&&!R.preview?(formLink(R.name,att)?'<p style="font-size:20px">Click <b>📨 Send to my teacher</b>, then click <b>Submit</b> on the form.</p>':'<p class="note" style="font-size:16px">Your result is saved on this computer. Your teacher may ask you to save it and send it on Teams.</p>'):''}</div>`}
-function packAtt(name,a){return JSON.stringify({v:1,n:name,id:a.id,t:a.task,tt:a.taskTitle,lv:a.level,m:a.mode,d:a.date,s:a.score,x:a.max,f:a.feel,sec:a.secs,i:a.items.map(x=>[String(x.q).slice(0,90),String(x.a).slice(0,90),String(x.c).slice(0,90),x.ok?1:0])})}
-function unpackAtt(o){return{id:o.id,task:o.t,taskTitle:o.tt,level:o.lv,mode:o.m,date:o.d,score:o.s,max:o.x,feel:o.f,secs:o.sec||0,items:(o.i||[]).map(([q,a,c,ok])=>{const m=/^Clock shows (\d+):(\d+)/.exec(q);return{q,a,c,ok:!!ok,svg:m?clock(+m[1],+m[2],60):''}})}}
+ ${R.mode==='check'&&!R.preview?(formLink(R.name,att)?'<p style="font-size:20px">Click <b>📨 Send to my teacher</b>, then click <b>Submit</b> on the form.</p>':'<p class="note" style="font-size:16px">Your result is saved on this computer. To send it, click <b>Print / save PDF</b>, choose “Save as PDF” and hand it in on Teams.</p>'):''}</div>`}
+function packAtt(name,a){return JSON.stringify({v:1,n:name,id:a.id,t:a.task,tt:a.taskTitle,lv:a.level,m:a.mode,d:a.date,s:a.score,x:a.max,f:a.feel,sec:a.secs,i:a.items.map(x=>[String(x.q).slice(0,a.task==='write'?220:90),String(x.a).slice(0,a.task==='write'?2000:90),String(x.c).slice(0,90),x.ok?1:0])})}
+function unpackAtt(o){return{auto:o.t==='write'?o.s:undefined,id:o.id,task:o.t,taskTitle:o.tt,level:o.lv,mode:o.m,date:o.d,score:o.s,max:o.x,feel:o.f,secs:o.sec||0,items:(o.i||[]).map(([q,a,c,ok])=>{const m=/^Clock shows (\d+):(\d+)/.exec(q);return{q,a,c,ok:!!ok,svg:m?clock(+m[1],+m[2],60):''}})}}
 function fill(url,tok,val){return url.replace(new RegExp('=(%22)?'+tok+'(%22)?(?=&|$)'),'='+encodeURIComponent(val))}
 function formLink(name,a){let u=String(S.cls.form||'').trim();if(!/^https:\/\/forms\.(office\.com|cloud\.microsoft)\//.test(u))return'';
  u=fill(u,'NAME',name);u=fill(u,'TASK',`${a.taskTitle} – ${a.mode==='check'?'Check':'Practice'}`);u=fill(u,'SCORE',`${a.score}/${a.max}`);u=fill(u,'DATA',packAtt(name,a));return u}
@@ -352,18 +402,19 @@ lm.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
  if(b.id==='toTeacher'){if(S.cls.pin&&prompt('Teacher PIN')!==String(S.cls.pin)){toast('Wrong PIN');return}openTeacher();return}
  if(b.id==='lBackHome'){lHome();return}
  if(b.id==='lBackTasks'){lTasks();return}
+ if(b.dataset.lv){R.level=b.dataset.lv;lTasks();return}
  if(b.dataset.task){lMode(b.dataset.task);return}
  if(b.dataset.mode){lStart(b.dataset.t,b.dataset.mode);return}
  if(b.id==='lQuit'){if(confirm('Stop this task? Your answers will not be saved.')){R.preview?openTeacher():lTasks()}return}
  if(b.dataset.opt!==undefined){lAnswer(b.dataset.opt);return}
  if(b.dataset.w!==undefined){if(R.locked)return;R.orderPick.push(+b.dataset.w);lRenderOrder();return}
  if(b.dataset.un!==undefined){if(R.locked)return;R.orderPick.splice(+b.dataset.un,1);lRenderOrder();return}
- if(b.id==='lNext'){const inp=$('#lAns');lAnswer(inp?inp.value:'');return}
+ if(b.id==='lNext'){const inp=$('#lAns')||$('#lWrite');lAnswer(inp?inp.value:'');return}
  if(b.id==='lCont'){lNextQ();return}
  if(b.dataset.feel){lDone(+b.dataset.feel);return}
  if(b.id==='lForm'){const u=formLink(R.name,R.last);if(u)window.open(u,'_blank');return}
- if(b.id==='lSend'){download(`RARPA result – ${R.name} – ${taskInfo(R.task).title} – ${today()}.json`,resultsFile([nkey(R.name)]),'application/json');return}
- if(b.id==='lAgain'){if(R.preview){R.preview=true}lStart(R.task,'practice');return}
+ if(b.id==='lPrint'){document.body.classList.add('plm');const t=document.title;document.title=`RARPA – ${R.name} – ${taskInfo(R.task).title} – ${today()}`;window.print();document.title=t;document.body.classList.remove('plm');return}
+ if(b.id==='lAgain'){lStart(R.task,'practice');return}
  if(b.id==='lOther'){R.preview?openTeacher():lTasks();return}
  if(b.id==='lFinish'){R.preview?openTeacher():lHome();return}
 });
@@ -417,14 +468,15 @@ function renderClass(){const c=S.cls;
  <li><b>Set targets.</b> Add your RARPA learners and give each 2–3 targets. Link each target to a task: Time, Money, Days &amp; months, Capital letters, Word order or Signs. You can also add your own tasks under <b>Tasks</b>.</li>
  <li><b>Get it onto the student PCs.</b> Click <b>Make student copy</b> and put that file in Teams. Learners open it, type their name and choose a task. Every attempt gives a new version of equal difficulty.</li>
  <li><b>Checks and practice.</b> Learners do a <b>Check</b> at the start, middle and end of the course, and <b>Practise</b> as often as they like. Check answers are recorded but not shown until the end. Practice shows the answers straight away.</li>
- <li><b>Collect the results.</b> After a check, learners click <b>Save for my teacher</b> and hand the file in on a Teams assignment. Then click <b>Import results</b> and select all the files at once. If they used your PC, the results are already here.</li>
+ <li><b>Collect the results.</b> With your Form link set (below), learners click <b>📨 Send to my teacher</b> and then <b>Submit</b>. Import the Form’s Excel file here. Without a Form, learners click <b>Print / save PDF</b> and hand the PDF in on Teams. If they used your PC, the results are already here.</li>
+ <li><b>Levels and writing.</b> Learners pick their level (E1–L1) on the task screen. <b>Writing</b> is an open task. The computer checks length, capital letters, full stops, linking words and paragraphs, and highlights them. You give the real mark (0–5) under <b>Answers</b> on the learner’s page, and your mark replaces the auto-check.</li>
  <li><b>Start, middle and end scores.</b> These are filled in automatically from the first, middle and latest checks. You can choose a different attempt for any stage.</li>
  <li><b>Reports.</b> Each learner gets a page with the score change, how their confidence changed, how often they practised, and their actual answers from the first and latest check, marked ✔/✘. The class summary is for management. Print it or save it as a PDF.</li></ol>
  <p class="note">Outcomes: <b>Achieved</b> = latest check reaches the success score (default 80%). <b>Partly achieved</b> = higher than the first check. <b>Not yet achieved</b> = no gain.</p>
  <button class="warn" id="wipe">Delete all data on this computer</button></div>`}
 
-function attRow(a){return`<tr><td>${ukDate(a.date)} ${new Date(a.date).toTimeString().slice(0,5)}</td><td>${esc(taskInfo(a.task).title)}</td><td>${a.mode==='check'?'<b>Check</b>':'Practice'}</td><td>${a.score}/${a.max}</td><td>${a.feel?FACES[a.feel-1][0]:''}</td><td>${Math.floor(a.secs/60)}m ${a.secs%60}s</td><td class="noprint"><button data-att="${a.id}">${openAtt===a.id?'Hide':'Answers'}</button> <button class="warn" data-delatt="${a.id}">✖</button></td></tr>${openAtt===a.id?`<tr><td colspan="7">${ansTable(a)}</td></tr>`:''}`}
-function ansTable(a){return`<table><tr><th>#</th><th>Question</th><th>Learner’s answer</th><th>Correct answer</th></tr>${a.items.map((x,k)=>`<tr><td>${k+1}</td><td>${x.svg?`<span class="mini">${x.svg}</span> `:''}${esc(x.q)}</td><td class="${x.ok?'ok':'no'}">${x.ok?'✔':'✘'} ${esc(x.a)}</td><td>${x.ok?'':esc(x.c)}</td></tr>`).join('')}</table>`}
+function attRow(a){return`<tr><td>${ukDate(a.date)} ${new Date(a.date).toTimeString().slice(0,5)}</td><td>${esc(taskInfo(a.task).title)} <span class="note">${esc(a.level||'')}</span></td><td>${a.mode==='check'?'<b>Check</b>':'Practice'}</td><td>${a.score}/${a.max}${a.task==='write'?`<br><span class="note">${a.tmark!=null&&a.tmark!==''?'teacher mark':'auto-check'}</span>`:''}</td><td>${a.feel?FACES[a.feel-1][0]:''}</td><td>${Math.floor(a.secs/60)}m ${a.secs%60}s</td><td class="noprint"><button data-att="${a.id}">${openAtt===a.id?'Hide':'Answers'}</button> <button class="warn" data-delatt="${a.id}">✖</button></td></tr>${openAtt===a.id?`<tr><td colspan="7">${ansTable(a)}</td></tr>`:''}`}
+function ansTable(a){if(a.task==='write')return`<p><b>Task:</b> ${esc(a.items[0].q)}</p>${writeBlock(a.items[0].a,a.level)}<p class="noprint"><label>Teacher mark (0–5) – replaces the auto-check score of ${a.auto??'–'}</label><input type="number" min="0" max="5" style="width:90px" data-tmark="${a.id}" value="${a.tmark??''}"></p>`;return`<table><tr><th>#</th><th>Question</th><th>Learner’s answer</th><th>Correct answer</th></tr>${a.items.map((x,k)=>`<tr><td>${k+1}</td><td>${x.svg?`<span class="mini">${x.svg}</span> `:''}${esc(x.q)}</td><td class="${x.ok?'ok':'no'}">${x.ok?'✔':'✘'} ${esc(x.a)}</td><td>${x.ok?'':esc(x.c)}</td></tr>`).join('')}</table>`}
 
 function renderLearner(l){
  const taskOpts=v=>`<option value="manual" ${v==='manual'||!v?'selected':''}>Other – I'll enter scores by hand</option>`+allTasks().map(id=>`<option value="${id}" ${id===v?'selected':''}>${taskInfo(id).icon} ${esc(taskInfo(id).title)}</option>`).join('');
@@ -473,7 +525,7 @@ function reportLearner(l){const c=S.cls,ts=l.targets.filter(t=>t.text);
   <div class="ev"><div><h5>Start check – ${first?ukDate(first.date):''}</h5>${first?evTable(first):''}</div><div><h5>${last&&last!==first?`Latest check – ${ukDate(last.date)}`:'Latest check'}</h5>${last&&last!==first?evTable(last):'<p class="note">Not done yet.</p>'}</div></div></div>`}).join('')}
  <div class="row" style="margin-top:12px;grid-template-columns:1fr 1fr"><div><b>Learner comment</b><p>${esc(l.learnerNote)||'–'}</p></div><div><b>Teacher comment / next steps</b><p>${esc(l.teacherNote)||'–'}</p></div></div>
  <div class="sig"><div>Learner signature</div><div>Teacher signature</div><div>Date</div></div></section>`}
-function evTable(a){return`<table><tr><th>Question</th><th>Answer</th></tr>${a.items.map(x=>`<tr><td>${x.svg?`<span class="mini">${x.svg}</span> `:''}${esc(x.q)}</td><td class="${x.ok?'ok':'no'}">${x.ok?'✔':'✘'} ${esc(x.a)}${x.ok?'':`<br><span class="note">➜ ${esc(x.c)}</span>`}</td></tr>`).join('')}</table>`}
+function evTable(a){if(a.task==='write')return`<p class="note" style="margin:0 0 4px">${esc(a.items[0].q)} · ${esc(a.level||'')} · ${a.tmark!=null&&a.tmark!==''?`teacher mark ${a.tmark}/5`:`auto-check ${a.score}/5`}</p>${writeBlock(a.items[0].a,a.level)}`;return`<table><tr><th>Question</th><th>Answer</th></tr>${a.items.map(x=>`<tr><td>${x.svg?`<span class="mini">${x.svg}</span> `:''}${esc(x.q)}</td><td class="${x.ok?'ok':'no'}">${x.ok?'✔':'✘'} ${esc(x.a)}${x.ok?'':`<br><span class="note">➜ ${esc(x.c)}</span>`}</td></tr>`).join('')}</table>`}
 function reportSummary(){const c=S.cls;let tot=0,ach=0,part=0,no=0,open=0,lAch=0,lProg=0;
  const rows=S.learners.map(l=>{const ts=l.targets.filter(t=>t.text);let any=false,prog=false;const r=ts.map((t,i)=>{tot++;const st=status(l,t)[0],ch=change(l,t);
   if(st==='Achieved'){ach++;any=true}else if(st==='Partly achieved')part++;else if(st==='Not yet achieved')no++;else open++;if(ch>0)prog=true;const s=stages(l,t);
@@ -546,7 +598,7 @@ tm.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
  if(b.id==='bLearnerMode'){openLearner();return}
  if(b.id==='addL'){const box=$('#newName');const ns=box.value.split(/\n|,/).map(s=>s.trim()).filter(Boolean);if(!ns.length)return;ns.forEach(n=>{if(!byName(n))S.learners.push(newLearner(n))});const last=byName(ns[ns.length-1]);sel=last.id;box.value='';view='edit';save();render();return}
  if(b.id==='wipe'){if(confirm('Delete ALL learners and results on this computer? This cannot be undone without a backup.')){S=blank();sel=null;save();render()}return}
- if(b.dataset.try){R={name:'Teacher preview',preview:true};$('#tm').classList.add('hide');lm.classList.remove('hide');lStart(b.dataset.try,'practice');return}
+ if(b.dataset.try){R={name:'Teacher preview',preview:true,level:S.cls.level};$('#tm').classList.add('hide');lm.classList.remove('hide');lStart(b.dataset.try,'practice');return}
  if(b.id==='addCu'){S.custom.push({id:'c'+uid(),title:'New task',icon:'⭐',type:'choose',level:S.cls.level,target:'',lines:''});save();render();return}
  if(b.dataset.delcu){if(confirm('Delete this task? Attempts already done stay in the records.')){S.custom=S.custom.filter(c=>c.id!==b.dataset.delcu);save();render()}return}
  if(!l)return;
@@ -563,6 +615,7 @@ tm.addEventListener('input',e=>{const el=e.target,l=L();
  if(!l)return;
  if(el.dataset.lf){l[el.dataset.lf]=el.dataset.lf==='name'?el.value:el.value;save();if(el.dataset.lf==='name')renderList();return}
  if(el.dataset.tf){l.targets[+el.dataset.t][el.dataset.tf]=el.value;save();return}
+ if(el.dataset.tmark){const a=l.attempts.find(x=>x.id===el.dataset.tmark);if(a){if(a.auto==null)a.auto=a.score;a.tmark=el.value===''?null:Math.max(0,Math.min(5,+el.value));a.score=a.tmark==null?a.auto:a.tmark;save()}return}
  if(el.dataset.mf){const t=l.targets[+el.dataset.t];t.manual[el.dataset.s]=t.manual[el.dataset.s]||{};t.manual[el.dataset.s][el.dataset.mf]=el.value;save();return}});
 tm.addEventListener('change',e=>{const el=e.target,l=L();
  if(el.id==='repSel'){repSel=el.value;render();return}
@@ -574,7 +627,7 @@ tm.addEventListener('change',e=>{const el=e.target,l=L();
  if(el.dataset.tsel!==undefined){const t=l.targets[+el.dataset.tsel],v=el.value,old=t.task?taskInfo(t.task).target:'';t.task=v;t.pick={};if(v!=='manual'&&(!t.text||t.text===old))t.text=taskInfo(v).target;save();render();return}
  if(el.dataset.pick){const t=l.targets[+el.dataset.t];t.pick=t.pick||{};t.pick[el.dataset.pick]=el.value;save();render();return}
  if(el.dataset.act==='merge'&&el.value){const into=S.learners.find(x=>x.id===el.value);if(confirm(`Move all of ${l.name}'s attempts into ${into.name} and remove ${l.name}?`)){l.attempts.forEach(a=>{if(!into.attempts.some(x=>x.id===a.id))into.attempts.push(a)});if(!into.targets.length)into.targets=l.targets;S.learners=S.learners.filter(x=>x!==l);sel=into.id;save();render()}else el.value='';return}
- if(el.dataset.tf||el.dataset.mf)render()});
+ if(el.dataset.tf||el.dataset.mf||el.dataset.tmark)render()});
 
 /* ---------- start ---------- */
 let startTeacher=false;try{startTeacher=sessionStorage.getItem('rarpa-t')==='1'}catch(e){}
