@@ -575,9 +575,23 @@ function reportSummary(){const c=S.cls;let tot=0,ach=0,part=0,no=0,open=0,lAch=0
  <table><tr><th>Learner</th><th>SMART target</th><th>Start</th><th>Middle</th><th>End</th><th>Change</th><th>Practice</th><th>Outcome</th></tr>${rows||'<tr><td colspan="8">No data yet.</td></tr>'}</table>
  <p class="note" style="margin-top:10px">Method: RARPA. Each learner did an initial check; targets were then agreed from the results (date shown on each learner record). Learners repeated an auto-marked PC task at the start, middle and end of the course. Each attempt was a new version of the same difficulty. Scores, dates, the learner's answers and their self-rated confidence are recorded automatically. Individual records with answer evidence are attached.</p></section>`}
 function renderReport(){const one=S.learners.find(l=>l.id===repSel);
- const pages=repSel==='summary'?reportSummary():one?reportLearner(one):reportSummary()+S.learners.map(reportLearner).join('');
- return`<div class="card noprint" style="max-width:950px;margin:0 auto 16px"><div class="flexbar"><select id="repSel" style="width:auto"><option value="all">Class summary + all learners</option><option value="summary" ${repSel==='summary'?'selected':''}>Class summary only</option>${S.learners.map(l=>`<option value="${l.id}" ${repSel===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select><button class="pri" id="print">Print / Save as PDF</button></div><p class="note" style="margin:8px 0 0">Choose “Save as PDF” or print double-sided. You get a summary, then one sheet (both sides) per learner. Blank backs are added so each learner starts on a new sheet.</p></div>${pages}`}
+ const pages=repSel==='summary'?reportSummary():repSel==='groups'?reportGroups():one?reportLearner(one):reportSummary()+reportGroups()+S.learners.map(reportLearner).join('');
+ return`<div class="card noprint" style="max-width:950px;margin:0 auto 16px"><div class="flexbar"><select id="repSel" style="width:auto"><option value="all">Class summary + all learners</option><option value="summary" ${repSel==='summary'?'selected':''}>Class summary only</option><option value="groups" ${repSel==='groups'?'selected':''}>Shared targets – for ProMonitor</option>${S.learners.map(l=>`<option value="${l.id}" ${repSel===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select><button class="pri" id="print">Print / Save as PDF</button></div><p class="note" style="margin:8px 0 0">Choose “Save as PDF” or print double-sided. You get a summary, then one sheet (both sides) per learner. Blank backs are added so each learner starts on a new sheet.</p></div>${pages}`}
 
+/* ---------- targets: suggest + group for ProMonitor ---------- */
+function suggestFor(l){if(l.targets.length>=3)return 0;const have=l.targets.map(t=>t.task),first={};l.attempts.filter(a=>a.mode==='check').sort((a,b)=>a.date<b.date?-1:1).forEach(a=>{if(!first[a.task])first[a.task]=a});
+ const c=Object.values(first).filter(a=>!have.includes(a.task)&&(TASKS[a.task]||S.custom.some(x=>x.id===a.task))&&a.score<okScore({ok:''},a.max)).sort((a,b)=>a.score/a.max-b.score/b.max).slice(0,3-l.targets.length);
+ c.forEach(a=>l.targets.push(newTarget(a.task)));if(c.length)l.upd=Date.now();return c.length}
+function groups(){const g={};S.learners.forEach(l=>l.targets.filter(t=>t.text).forEach(t=>{const k=t.text.trim();(g[k]=g[k]||{text:k,task:t.task,ok:t.ok,ls:[],dates:new Set()}).ls.push(l.name);if(t.set)g[k].dates.add(t.set)}));return Object.values(g).sort((a,b)=>b.ls.length-a.ls.length)}
+function groupText(x){return`${x.text}\nMeasured by: ${x.task&&x.task!=='manual'?`auto-marked PC check (${taskInfo(x.task).title}), first check vs final check; target met at ${x.ok||'80%'} ${x.ok?'or more':'or above'}`:'teacher assessment'}\n\n${x.ls.join('\n')}`}
+function reportGroups(){const c=S.cls,gs=groups(),none=S.learners.filter(l=>!l.targets.some(t=>t.text));
+ return`<section class="page">${rHead('Shared targets – for ProMonitor',`${c.name||'Class'} · ${c.college} · ${c.year} · Teacher: ${c.teacher} · Printed ${ukDate(today())}`)}
+ <div class="noprint flexbar" style="margin-bottom:10px"><button class="pri" id="bulkSuggest">💡 Suggest targets for everyone from their first check</button><span class="note">Only adds targets; it never changes ones you've already set.</span></div>
+ ${gs.length?gs.map((x,i)=>`<div class="tgtev" style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0">
+  <div class="flexbar" style="justify-content:space-between"><b style="font-size:15px">${i+1}. ${esc(x.text)}</b><span class="flexbar"><span class="badge">${x.ls.length} learner${x.ls.length>1?'s':''}</span><button class="noprint" data-copyg="${i}">📋 Copy</button></span></div>
+  <p class="note" style="margin:4px 0">Measured by: ${x.task&&x.task!=='manual'?`auto-marked PC check (${esc(taskInfo(x.task).title)}), first check vs final check`:'teacher assessment'} · Agreed: ${[...x.dates].sort().map(ukDate).join(', ')||'–'}</p>
+  <div style="columns:3;column-gap:20px;font-size:14px">${x.ls.map(n=>`<div>☐ ${esc(n)}</div>`).join('')}</div></div>`).join(''):'<p class="note">No targets set yet. Click the button above once your learners have done their first check.</p>'}
+ ${none.length?`<p class="note" style="margin-top:12px"><b>No target yet:</b> ${none.map(l=>esc(l.name)).join(', ')}</p>`:''}</section>`}
 /* ---------- print: summary + one sheet (2 sides) per learner ---------- */
 function unprep(){document.querySelectorAll('.blankpg').forEach(x=>x.remove());document.querySelectorAll('#main .page').forEach(p=>p.style.zoom='')}
 function countPages(p,z){const PH=990;let pg=1,used=0;
@@ -645,7 +659,7 @@ function cellsFromXml(x){const t=[];const doc=new DOMParser().parseFromString(x,
 function cellsFromCsv(txt){const out=[];let cur='',q=false;for(let i=0;i<txt.length;i++){const ch=txt[i];if(q){if(ch==='"'){if(txt[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}else if(ch==='"')q=true;else if(ch===','||ch==='\n'||ch==='\r'){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out}
 async function importSheets(files){let n=0,bad=0;
  for(const f of files){let cells=[];try{cells=/\.csv$/i.test(f.name)?cellsFromCsv(await f.text()):(await zipTexts(await f.arrayBuffer())).flatMap(cellsFromXml)}catch(x){toast(f.name+': could not read');continue}
-  cells.forEach(c=>{const t=String(c||'').trim().replace(/^RARPA\s+/,'');if(!/^\{"v":[12]/.test(t))return;try{const o=JSON.parse(t),list=o.v===2?o.a:[o];let l=byName(o.n);if(!l){l=newLearner(o.n);S.learners.push(l)}list.forEach(x=>{const a=unpackAtt(x);if(!l.attempts.some(y=>y.id===a.id)){l.attempts.push(a);n++}})}catch(x){bad++}})}
+  cells.forEach(c=>{const t=String(c||'').trim().replace(/^RARPA\s+/,'');if(!/^\{\s*"v"\s*:\s*[12]/.test(t))return;try{const o=JSON.parse(t),list=o.v===2?o.a:[o];let l=byName(o.n);if(!l){l=newLearner(o.n);S.learners.push(l)}list.forEach(x=>{const a=unpackAtt(x);if(!l.attempts.some(y=>y.id===a.id)){l.attempts.push(a);n++}})}catch(x){bad++}})}
  save(true,true);render();toast(`${n} new result${n===1?'':'s'} imported from Forms${bad?` (${bad} unreadable)`:''}`)}
 function exportCsv(){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
  const rows=[['Learner','Target','Task','Start date','Start score','Middle date','Middle score','End date','End score','Change','Practice attempts','Confidence start','Confidence end','Outcome']];
@@ -672,6 +686,8 @@ tm.addEventListener('click',e=>{const rmi=e.target.closest('[data-rmid]');if(rmi
  if(b.id==='bEdit'){view='edit';render();return}
  if(b.id==='bTasks'){view='tasks';render();return}
  if(b.id==='bReport'){view='report';render();return}
+ if(b.id==='bulkSuggest'){let k=0,m=0;S.learners.forEach(l=>{const n=suggestFor(l);if(n){k+=n;m++}});save(true,true);render();toast(k?`${k} targets added for ${m} learner${m>1?'s':''}`:'No new targets – check first checks are imported');return}
+ if(b.dataset.copyg!==undefined){const x=groups()[+b.dataset.copyg],t=groupText(x);(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Copied – paste into ProMonitor'),()=>prompt('Copy this:',t));return}
  if(b.id==='print'){prepPrint();window.print();return}
  if(b.id==='bImport'){$('#fImport').click();return}
  if(b.id==='bBackup'||b.id==='bkStat'){doBackup();return}
@@ -691,9 +707,7 @@ tm.addEventListener('click',e=>{const rmi=e.target.closest('[data-rmid]');if(rmi
  if(b.dataset.att){openAtt=openAtt===b.dataset.att?null:b.dataset.att;render();return}
  if(b.dataset.delatt){if(confirm('Delete this attempt?')){l.attempts=l.attempts.filter(a=>a.id!==b.dataset.delatt);save();render()}return}
  if(b.dataset.act==='addT'){l.targets.push(newTarget());save();render();return}
- if(b.dataset.act==='suggest'){const have=l.targets.map(t=>t.task),first={};l.attempts.filter(a=>a.mode==='check').sort((a,b)=>a.date<b.date?-1:1).forEach(a=>{if(!first[a.task])first[a.task]=a});
-  const c=Object.values(first).filter(a=>!have.includes(a.task)&&(TASKS[a.task]||S.custom.some(x=>x.id===a.task))&&a.score<okScore({ok:''},a.max)).sort((a,b)=>a.score/a.max-b.score/b.max).slice(0,3-l.targets.length);
-  if(!c.length){toast('No first checks below the success score to base a target on');return}c.forEach(a=>l.targets.push(newTarget(a.task)));save();render();toast(`${c.length} target${c.length>1?'s':''} added from first-check results`);return}
+ if(b.dataset.act==='suggest'){const k=suggestFor(l);if(!k){toast('No first checks below the success score to base a target on');return}save();render();toast(`${k} target${k>1?'s':''} added from first-check results`);return}
  if(b.dataset.act==='delT'){if(confirm('Remove this target? (Attempts are kept.)')){l.targets.splice(+b.dataset.t,1);save();render()}return}
  if(b.dataset.act==='delL'){if(confirm(`Remove ${l.name} and all their records?`)){S.learners=S.learners.filter(x=>x!==l);sel=null;save();render()}return}
  if(b.dataset.act==='rep'){repSel=l.id;view='report';render();return}
