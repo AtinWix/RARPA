@@ -146,7 +146,7 @@ td.ok{background:var(--goodbg)}td.no{background:var(--badbg)}
     <button id="bBackup">Save backup</button>
     <button id="bCsv">Export for Excel</button>
     <button id="bCopy">Make student copy</button><button id="bLink">Copy student link</button>
-    <button id="bLearnerMode">Learner screen</button>
+    <button id="bLearnerMode">Learner screen</button><button id="bkStat" class="noprint"></button>
     <input type="file" id="fImport" accept=".json,.xlsx,.csv" multiple class="hide">
     <div class="logo" title="made by Atin"><span class="lg"></span>made by Atin</div>
   </header>
@@ -201,7 +201,7 @@ function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&Array.is
 let S=load();
 if(!S.cls.form)S.cls.form=DEFAULT_FORM;
 if(CFG){Object.assign(S.cls,{level:CFG.level,items:CFG.items,pin:CFG.pin,name:CFG.name||S.cls.name,form:CFG.form||'',practice:!!CFG.practice});(CFG.custom||[]).forEach(c=>{const i=S.custom.findIndex(x=>x.id===c.id);if(i<0)S.custom.push(c);else S.custom[i]=c})}
-let saveT;function save(quiet){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S));if(!quiet)toast('Saved on this computer')}catch(e){toast('Could not save here – use Save backup')}},250)}
+let saveT;function save(quiet,noTouch){S.dirty=true;if(!noTouch){const l=typeof L==='function'&&L();if(l)l.upd=Date.now()}clearTimeout(saveT);if(typeof bkStat==='function')bkStat();saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S));if(!quiet)toast('Saved on this computer')}catch(e){toast('Could not save here – use Save backup')}},250)}
 function saveNow(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function newLearner(name){return{id:uid(),name:tidyName(name),targets:[],attempts:[],teacherNote:'',learnerNote:''}}
 const byName=n=>S.learners.find(l=>nkey(l.name)===nkey(n));
@@ -456,7 +456,7 @@ function highlight(l,t){const s=stages(l,t),last=s.final||s.review,i=s.initial;i
 
 function renderList(){
  $('#classBtn').classList.toggle('on',sel===null&&view==='edit');
- $('#lrnList').innerHTML=S.learners.length?S.learners.map(l=>`<button class="lrn ${l.id===sel&&view==='edit'?'on':''}" data-l="${l.id}"><span>${esc(l.name)}<span class="rmx" data-rmid="${l.id}" title="Remove learner">✕</span></span><span class="sdots">${l.targets.map(t=>`<span class="${status(l,t)[1]}"></span>`).join('')}</span></button>`).join(''):'<p class="note">No learners yet.</p>'}
+ $('#lrnList').innerHTML=S.learners.length?S.learners.map(l=>`<button class="lrn ${l.id===sel&&view==='edit'?'on':''}" data-l="${l.id}"><span>${esc(l.name)}</span><span style="display:flex;align-items:center"><span class="sdots">${l.targets.map(t=>`<span class="${status(l,t)[1]}"></span>`).join('')}</span><span class="rmx" data-rmid="${l.id}" title="Remove learner">✕</span></span></button>`).join(''):'<p class="note">No learners yet.</p>'}
 const opt=(list,v)=>list.map(x=>`<option ${x===v?'selected':''}>${esc(x)}</option>`).join('');
 function renderClass(){const c=S.cls;
  return`<div class="card"><h2>Class details</h2>
@@ -549,6 +549,10 @@ function renderReport(){const one=S.learners.find(l=>l.id===repSel);
  const pages=repSel==='summary'?reportSummary():one?reportLearner(one):reportSummary()+S.learners.map(reportLearner).join('');
  return`<div class="card noprint" style="max-width:950px;margin:0 auto 16px"><div class="flexbar"><select id="repSel" style="width:auto"><option value="all">Class summary + all learners</option><option value="summary" ${repSel==='summary'?'selected':''}>Class summary only</option>${S.learners.map(l=>`<option value="${l.id}" ${repSel===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select><button class="pri" id="print">Print / Save as PDF</button></div><p class="note" style="margin:8px 0 0">Choose “Save as PDF” in the print window. Each learner starts on a new page.</p></div>${pages}`}
 
+/* ---------- backup status ---------- */
+function doBackup(){S.dirty=false;S.lastBackup=Date.now();const d=new Date();download(`RARPA backup ${S.cls.name||'class'} ${today()} ${pad(d.getHours())}${pad(d.getMinutes())}.json`,JSON.stringify({type:'rarpa-backup',data:S}),'application/json');saveNow();bkStat();toast('Backup saved – keep it in your OneDrive')}
+function bkStat(){const e=document.getElementById('bkStat');if(!e)return;if(S.dirty){e.textContent='⚠ Not backed up – click to save';e.style.cssText='background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:700'}else{e.textContent=S.lastBackup?`✔ Backed up ${new Date(S.lastBackup).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`:'✔ Nothing to back up';e.style.cssText='color:var(--good)'}}
+window.addEventListener('beforeunload',e=>{if(S.dirty&&!$('#tm').classList.contains('hide')){e.preventDefault();e.returnValue=''}});
 /* ---------- paste a class list → names ---------- */
 let found=null;
 const NOISE=new Set('student students learner learners name names surname forename forenames first last full id no number ref reference present absent late authorised unauthorised attended attendance register class group course esol e1 e2 e3 l1 l2 entry level mr mrs ms miss dr male female m f yes no n/a na tel phone mobile email dob date age gender status enrolled withdrawn active total am pm teams owner member members guest new city college hackney monday tuesday wednesday thursday friday saturday sunday january february march april may june july august september october november december morning afternoon evening week term semester room lesson'.split(' '));
@@ -574,18 +578,20 @@ function renderPaste(){return`<div class="card"><h2>📋 Paste a class list</h2>
  ${found?(found.length?`<h3>Found ${found.length} new name${found.length>1?'s':''} – untick or correct any before adding</h3>
  <div>${found.map((n,i)=>`<div class="flexbar" style="margin:4px 0"><input type="checkbox" data-fk="${i}" checked style="width:auto"><input data-fn="${i}" value="${esc(n)}" style="max-width:320px"></div>`).join('')}</div>
  <p><button class="pri" id="addFound">Add ticked learners</button></p>`:'<p class="note">No new names found. They may already be in your list.</p>'):''}</div>`}
-function render(){renderList();['bEdit','bTasks','bReport'].forEach(id=>$('#'+id).classList.toggle('pri',(id==='bEdit'&&view==='edit')||(id==='bTasks'&&view==='tasks')||(id==='bReport'&&view==='report')));
+function render(){renderList();bkStat();['bEdit','bTasks','bReport'].forEach(id=>$('#'+id).classList.toggle('pri',(id==='bEdit'&&view==='edit')||(id==='bTasks'&&view==='tasks')||(id==='bReport'&&view==='report')));
  const m=$('#main');if(view==='report'){m.innerHTML=renderReport();return}if(view==='tasks'){m.innerHTML=renderTasks();return}if(view==='paste'){m.innerHTML=renderPaste();return}const l=L();m.innerHTML=l?renderLearner(l):renderClass()}
 
 /* ---------- import / export ---------- */
-function mergeData(d){let n=0;
- if(d.type==='rarpa-backup'&&!S.learners.length){S=d.data;S.custom=S.custom||[];return'Backup loaded'}
+function mergeData(d){let n=0,u=0;
+ if(d.type==='rarpa-backup'&&!S.learners.length){S=d.data;S.custom=S.custom||[];if(!S.cls.form)S.cls.form=DEFAULT_FORM;S.dirty=false;return'Backup loaded'}
  const src=d.type==='rarpa-backup'?d.data:d;
+ if(d.type==='rarpa-backup'&&src.cls&&(src.cls.upd||0)>(S.cls.upd||0))S.cls=Object.assign({},S.cls,src.cls);
  (src.learners||[]).forEach(dl=>{let l=byName(dl.name);if(!l){l=newLearner(dl.name);S.learners.push(l)}
-  (dl.attempts||[]).forEach(a=>{if(!l.attempts.some(x=>x.id===a.id)){l.attempts.push(a);n++}});
-  if(dl.targets&&dl.targets.length&&!l.targets.length)l.targets=dl.targets;['teacherNote','learnerNote'].forEach(k=>{if(dl[k]&&!l[k])l[k]=dl[k]})});
- (src.custom||[]).forEach(c=>{if(!S.custom.some(x=>x.id===c.id))S.custom.push(c)});
- return`${n} new attempt${n===1?'':'s'} imported`}
+  (dl.attempts||[]).forEach(a=>{const i=l.attempts.findIndex(x=>x.id===a.id);if(i<0){l.attempts.push(a);n++}else if((a.upd||0)>(l.attempts[i].upd||0)){l.attempts[i]=a;u++}});
+  if((dl.upd||0)>(l.upd||0)){l.targets=dl.targets||[];l.teacherNote=dl.teacherNote||'';l.learnerNote=dl.learnerNote||'';l.upd=dl.upd;u++}
+  else{if(dl.targets&&dl.targets.length&&!l.targets.length)l.targets=dl.targets;['teacherNote','learnerNote'].forEach(k=>{if(dl[k]&&!l[k])l[k]=dl[k]})}});
+ (src.custom||[]).forEach(c=>{const i=S.custom.findIndex(x=>x.id===c.id);if(i<0)S.custom.push(c);else if((c.upd||0)>(S.custom[i].upd||0))S.custom[i]=c});
+ return`${n} new attempt${n===1?'':'s'}${u?`, ${u} newer change${u===1?'':'s'}`:''} imported`}
 async function zipTexts(buf){const d=new DataView(buf),u8=new Uint8Array(buf);let e=-1;for(let i=buf.byteLength-22;i>=0;i--)if(d.getUint32(i,true)===0x06054b50){e=i;break}if(e<0)throw 0;
  let p=d.getUint32(e+16,true);const cnt=d.getUint16(e+10,true),out=[];
  for(let k=0;k<cnt;k++){const meth=d.getUint16(p+10,true),csz=d.getUint32(p+20,true),nl=d.getUint16(p+28,true),xl=d.getUint16(p+30,true),cl=d.getUint16(p+32,true),off=d.getUint32(p+42,true);
@@ -598,7 +604,7 @@ function cellsFromCsv(txt){const out=[];let cur='',q=false;for(let i=0;i<txt.len
 async function importSheets(files){let n=0,bad=0;
  for(const f of files){let cells=[];try{cells=/\.csv$/i.test(f.name)?cellsFromCsv(await f.text()):(await zipTexts(await f.arrayBuffer())).flatMap(cellsFromXml)}catch(x){toast(f.name+': could not read');continue}
   cells.forEach(c=>{const t=String(c||'').trim().replace(/^RARPA\s+/,'');if(!t.startsWith('{"v":1'))return;try{const o=JSON.parse(t),a=unpackAtt(o);let l=byName(o.n);if(!l){l=newLearner(o.n);S.learners.push(l)}if(!l.attempts.some(x=>x.id===a.id)){l.attempts.push(a);n++}}catch(x){bad++}})}
- save(true);render();toast(`${n} new result${n===1?'':'s'} imported from Forms${bad?` (${bad} unreadable)`:''}`)}
+ save(true,true);render();toast(`${n} new result${n===1?'':'s'} imported from Forms${bad?` (${bad} unreadable)`:''}`)}
 function exportCsv(){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
  const rows=[['Learner','Target','Task','Start date','Start score','Middle date','Middle score','End date','End score','Change','Practice attempts','Confidence start','Confidence end','Outcome']];
  S.learners.forEach(l=>l.targets.filter(t=>t.text).forEach(t=>{const s=stages(l,t),r=[l.name,t.text,t.task&&t.task!=='manual'?taskInfo(t.task).title:'Other'];
@@ -626,7 +632,7 @@ tm.addEventListener('click',e=>{const rmi=e.target.closest('[data-rmid]');if(rmi
  if(b.id==='bReport'){view='report';render();return}
  if(b.id==='print'){window.print();return}
  if(b.id==='bImport'){$('#fImport').click();return}
- if(b.id==='bBackup'){download(`RARPA backup ${S.cls.name||'class'} ${today()}.json`,JSON.stringify({type:'rarpa-backup',data:S}),'application/json');return}
+ if(b.id==='bBackup'||b.id==='bkStat'){doBackup();return}
  if(b.id==='bCsv'){exportCsv();return}
  if(b.id==='bCopy'){studentCopy();return}
  if(b.id==='bLink'){studentLink();return}
@@ -651,12 +657,12 @@ tm.addEventListener('click',e=>{const rmi=e.target.closest('[data-rmid]');if(rmi
  if(b.dataset.act==='rep'){repSel=l.id;view='report';render();return}
 });
 tm.addEventListener('input',e=>{const el=e.target,l=L();
- if(el.dataset.c){S.cls[el.dataset.c]=el.value;save();if(el.dataset.c==='form'){clearTimeout(window._fr);window._fr=setTimeout(render,700)}return}
- if(el.dataset.cu){const c=S.custom.find(x=>x.id===el.dataset.id);if(c){c[el.dataset.cu]=el.value;save(true)}return}
+ if(el.dataset.c){S.cls[el.dataset.c]=el.value;S.cls.upd=Date.now();save();if(el.dataset.c==='form'){clearTimeout(window._fr);window._fr=setTimeout(render,700)}return}
+ if(el.dataset.cu){const c=S.custom.find(x=>x.id===el.dataset.id);if(c){c[el.dataset.cu]=el.value;c.upd=Date.now();save(true)}return}
  if(!l)return;
  if(el.dataset.lf){l[el.dataset.lf]=el.dataset.lf==='name'?el.value:el.value;save();if(el.dataset.lf==='name')renderList();return}
  if(el.dataset.tf){l.targets[+el.dataset.t][el.dataset.tf]=el.value;save();return}
- if(el.dataset.tmark){const a=l.attempts.find(x=>x.id===el.dataset.tmark);if(a){if(a.auto==null)a.auto=a.score;a.tmark=el.value===''?null:Math.max(0,Math.min(5,+el.value));a.score=a.tmark==null?a.auto:a.tmark;save()}return}
+ if(el.dataset.tmark){const a=l.attempts.find(x=>x.id===el.dataset.tmark);if(a){if(a.auto==null)a.auto=a.score;a.tmark=el.value===''?null:Math.max(0,Math.min(5,+el.value));a.score=a.tmark==null?a.auto:a.tmark;a.upd=Date.now();save()}return}
  if(el.dataset.mf){const t=l.targets[+el.dataset.t];t.manual[el.dataset.s]=t.manual[el.dataset.s]||{};t.manual[el.dataset.s][el.dataset.mf]=el.value;save();return}});
 tm.addEventListener('change',e=>{const el=e.target,l=L();
  if(el.id==='repSel'){repSel=el.value;render();return}
