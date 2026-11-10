@@ -159,6 +159,7 @@ td.ok{background:var(--goodbg)}td.no{background:var(--badbg)}
         <input id="newName" placeholder="Learner name">
         <button class="pri" id="addL">Add learner</button>
       </div>
+      <button id="pasteBtn" style="width:100%;margin-top:8px">📋 Paste a class list</button>
       <p class="note">Learners who type their name on the learner screen are added automatically.</p>
     </aside>
     <main id="main"></main>
@@ -548,8 +549,33 @@ function renderReport(){const one=S.learners.find(l=>l.id===repSel);
  const pages=repSel==='summary'?reportSummary():one?reportLearner(one):reportSummary()+S.learners.map(reportLearner).join('');
  return`<div class="card noprint" style="max-width:950px;margin:0 auto 16px"><div class="flexbar"><select id="repSel" style="width:auto"><option value="all">Class summary + all learners</option><option value="summary" ${repSel==='summary'?'selected':''}>Class summary only</option>${S.learners.map(l=>`<option value="${l.id}" ${repSel===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select><button class="pri" id="print">Print / Save as PDF</button></div><p class="note" style="margin:8px 0 0">Choose “Save as PDF” in the print window. Each learner starts on a new page.</p></div>${pages}`}
 
+/* ---------- paste a class list → names ---------- */
+let found=null;
+const NOISE=new Set('student students learner learners name names surname forename forenames first last full id no number ref reference present absent late authorised unauthorised attended attendance register class group course esol e1 e2 e3 l1 l2 entry level mr mrs ms miss dr male female m f yes no n/a na tel phone mobile email dob date age gender status enrolled withdrawn active total am pm teams owner member members guest new city college hackney monday tuesday wednesday thursday friday saturday sunday january february march april may june july august september october november december morning afternoon evening week term semester room lesson'.split(' '));
+const tcase=w=>w.split(/([-'’])/).map(x=>/^[-'’]$/.test(x)?x:x.charAt(0).toUpperCase()+x.slice(1).toLowerCase()).join('');
+function extractNames(txt){const out=[],seen=new Set(S.learners.map(l=>nkey(l.name)));
+ String(txt||'').split(/\r?\n|;|\t{2,}/).forEach(line=>{let L=line.trim();if(!L)return;
+  const em=L.match(/\b([a-z][a-z'-]+)[._]([a-z][a-z'-]+)\d*@[^\s,;>)]+/i);L=L.replace(/<?[\w.+-]+@[\w.-]+\.\w+>?/g,' ').replace(/\([^)]*\)|\[[^\]]*\]/g,' ');
+  let m=L.match(/^\s*([\p{L}'’-]+(?:\s+[\p{L}'’-]+)?)\s*,\s*([\p{L}'’-]+(?:\s+[\p{L}'’-]+)?)\b/u);
+  let toks;
+  if(m&&!NOISE.has(m[1].toLowerCase()))toks=[...m[2].split(/\s+/),...m[1].split(/\s+/)];
+  else{toks=L.split(/[\s,|\t:]+/).filter(w=>/^[\p{L}][\p{L}'’-]*$/u.test(w)&&!NOISE.has(w.toLowerCase()));
+   const caps=toks.filter(w=>w.length>1&&w===w.toUpperCase()),rest=toks.filter(w=>!(w.length>1&&w===w.toUpperCase()));
+   if(caps.length&&rest.length)toks=[...rest,...caps]}
+  if((!toks||!toks.length)&&em)toks=[em[1],em[2]];
+  toks=(toks||[]).filter(w=>!NOISE.has(w.toLowerCase())).slice(0,4);
+  if(toks.length<1||(toks.length===1&&toks[0].length<3))return;
+  const n=toks.map(tcase).join(' ');if(seen.has(nkey(n)))return;seen.add(nkey(n));out.push(n)});
+ return out}
+function renderPaste(){return`<div class="card"><h2>📋 Paste a class list</h2>
+ <p class="note">Paste anything with your learners' names in it: a register, an email, a Teams member list or a spreadsheet column. IDs, emails, dates and words like "Present" are ignored. "SURNAME Forename" and "Surname, Forename" become "Forename Surname".</p>
+ <textarea id="pasteBox" rows="9" placeholder="e.g.\nYUSUF Amina  10023456  Present\nAli, Karim\nmaria.lopez@student.ncc.ac.uk">${esc(window._pasteTxt||'')}</textarea>
+ <p><button class="pri" id="findNames">Find names</button></p>
+ ${found?(found.length?`<h3>Found ${found.length} new name${found.length>1?'s':''} – untick or correct any before adding</h3>
+ <div>${found.map((n,i)=>`<div class="flexbar" style="margin:4px 0"><input type="checkbox" data-fk="${i}" checked style="width:auto"><input data-fn="${i}" value="${esc(n)}" style="max-width:320px"></div>`).join('')}</div>
+ <p><button class="pri" id="addFound">Add ticked learners</button></p>`:'<p class="note">No new names found. They may already be in your list.</p>'):''}</div>`}
 function render(){renderList();['bEdit','bTasks','bReport'].forEach(id=>$('#'+id).classList.toggle('pri',(id==='bEdit'&&view==='edit')||(id==='bTasks'&&view==='tasks')||(id==='bReport'&&view==='report')));
- const m=$('#main');if(view==='report'){m.innerHTML=renderReport();return}if(view==='tasks'){m.innerHTML=renderTasks();return}const l=L();m.innerHTML=l?renderLearner(l):renderClass()}
+ const m=$('#main');if(view==='report'){m.innerHTML=renderReport();return}if(view==='tasks'){m.innerHTML=renderTasks();return}if(view==='paste'){m.innerHTML=renderPaste();return}const l=L();m.innerHTML=l?renderLearner(l):renderClass()}
 
 /* ---------- import / export ---------- */
 function mergeData(d){let n=0;
@@ -605,6 +631,9 @@ tm.addEventListener('click',e=>{const rmi=e.target.closest('[data-rmid]');if(rmi
  if(b.id==='bCopy'){studentCopy();return}
  if(b.id==='bLink'){studentLink();return}
  if(b.id==='bLearnerMode'){openLearner();return}
+ if(b.id==='pasteBtn'){view='paste';sel=null;found=null;render();return}
+ if(b.id==='findNames'){window._pasteTxt=$('#pasteBox').value;found=extractNames(window._pasteTxt);render();return}
+ if(b.id==='addFound'){let n=0;found.forEach((x,i)=>{const nm=tidyName($(`[data-fn="${i}"]`).value);if($(`[data-fk="${i}"]`).checked&&nm.length>1&&!byName(nm)){S.learners.push(newLearner(nm));n++}});found=null;window._pasteTxt='';save();view='edit';render();toast(`${n} learner${n===1?'':'s'} added`);return}
  if(b.id==='addL'){const box=$('#newName');const ns=box.value.split(/\n|,/).map(s=>s.trim()).filter(Boolean);if(!ns.length)return;ns.forEach(n=>{if(!byName(n))S.learners.push(newLearner(n))});const last=byName(ns[ns.length-1]);sel=last.id;box.value='';view='edit';save();render();return}
  if(b.id==='wipe'){if(confirm('Delete ALL learners and results on this computer? This cannot be undone without a backup.')){S=blank();sel=null;save();render()}return}
  if(b.dataset.try){R={name:'Teacher preview',preview:true,level:S.cls.level};$('#tm').classList.add('hide');lm.classList.remove('hide');lStart(b.dataset.try,'practice');return}
