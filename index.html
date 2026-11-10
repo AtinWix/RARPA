@@ -116,6 +116,9 @@ td.ok{background:var(--goodbg)}td.no{background:var(--badbg)}
 .sig{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:22px;font-size:14px}
 .sig div{border-top:1px solid var(--ink);padding-top:4px}
 @media (max-width:760px){.wrap{grid-template-columns:1fr}.opts{grid-template-columns:1fr}.ev{grid-template-columns:1fr}}
+@page{size:A4;margin:12mm}
+@media screen{.blankpg{display:none}}
+body.measuring .page{width:186mm!important;max-width:186mm!important;padding:0!important;border:0!important;margin:0!important;font-size:11pt}
 @media print{
   body{background:#fff;font-size:11pt}
   #tm header,aside,.noprint,.toast,#lm{display:none!important}
@@ -129,6 +132,7 @@ td.ok{background:var(--goodbg)}td.no{background:var(--badbg)}
   .page:last-child{page-break-after:auto}
   th,td.ok,td.no,.badge,.hl{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .tgtev{page-break-inside:avoid}
+  .blankpg{display:block!important}
 }
 </style>
 </head>
@@ -532,7 +536,7 @@ function reportLearner(l){const c=S.cls,ts=l.targets.filter(t=>t.text);
   return`<div class="tgtev"><h3>Target ${i+1}: ${esc(t.text)}</h3>${highlight(l,t)?`<div class="hl">${highlight(l,t)}</div>`:''}
   <div class="chart">${ch.map(a=>`<div><b>${a.score}/${a.max}</b><i style="height:${Math.max(4,a.score/a.max*60)}px"></i>${shortDate(a.date)}</div>`).join('')}</div><p class="note" style="margin:0">All checks in date order.</p>
   <div class="ev"><div><h5>Start check – ${first?ukDate(first.date):''}</h5>${first?evTable(first):''}</div><div><h5>${last&&last!==first?`Latest check – ${ukDate(last.date)}`:'Latest check'}</h5>${last&&last!==first?evTable(last):'<p class="note">Not done yet.</p>'}</div></div></div>`}).join('')}
- ${(()=>{const tt=ts.map(t=>t.task),other=[...new Set(l.attempts.filter(a=>a.mode==='check'&&!tt.includes(a.task)).map(a=>a.task))];if(!other.length)return'';
+ ${(()=>{if(ts.length)return'';const tt=ts.map(t=>t.task),other=[...new Set(l.attempts.filter(a=>a.mode==='check'&&!tt.includes(a.task)).map(a=>a.task))];if(!other.length)return'';
   return`<h3 style="margin-top:18px">${ts.length?'Other checks':'Evidence from checks'}${ts.length?'':' <span class="note">(no targets set yet)</span>'}</h3>`+other.map(id=>{const ch=l.attempts.filter(a=>a.task===id&&a.mode==='check').sort((a,b)=>a.date<b.date?-1:1),first=ch[0],last=ch.length>1?ch[ch.length-1]:null,d=last?last.score-first.score:null;
   return`<div class="tgtev"><h3>${taskInfo(id).icon} ${esc(taskInfo(id).title)}</h3>${last?`<div class="hl">${esc(l.name.split(' ')[0])} scored <b>${first.score}/${first.max}</b> on ${ukDate(first.date)} and <b>${last.score}/${last.max}</b> on ${ukDate(last.date)} (${d>0?'up '+d:d===0?'no change':'down '+(-d)}).</div>`:''}
   <div class="chart">${ch.map(a=>`<div><b>${a.score}/${a.max}</b><i style="height:${Math.max(4,a.score/a.max*60)}px"></i>${shortDate(a.date)}</div>`).join('')}</div>
@@ -552,8 +556,21 @@ function reportSummary(){const c=S.cls;let tot=0,ach=0,part=0,no=0,open=0,lAch=0
  <p class="note" style="margin-top:10px">Method: RARPA. Each learner did an initial check; targets were then agreed from the results (date shown on each learner record). Learners repeated an auto-marked PC task at the start, middle and end of the course. Each attempt was a new version of the same difficulty. Scores, dates, the learner's answers and their self-rated confidence are recorded automatically. Individual records with answer evidence are attached.</p></section>`}
 function renderReport(){const one=S.learners.find(l=>l.id===repSel);
  const pages=repSel==='summary'?reportSummary():one?reportLearner(one):reportSummary()+S.learners.map(reportLearner).join('');
- return`<div class="card noprint" style="max-width:950px;margin:0 auto 16px"><div class="flexbar"><select id="repSel" style="width:auto"><option value="all">Class summary + all learners</option><option value="summary" ${repSel==='summary'?'selected':''}>Class summary only</option>${S.learners.map(l=>`<option value="${l.id}" ${repSel===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select><button class="pri" id="print">Print / Save as PDF</button></div><p class="note" style="margin:8px 0 0">Choose “Save as PDF” in the print window. Each learner starts on a new page.</p></div>${pages}`}
+ return`<div class="card noprint" style="max-width:950px;margin:0 auto 16px"><div class="flexbar"><select id="repSel" style="width:auto"><option value="all">Class summary + all learners</option><option value="summary" ${repSel==='summary'?'selected':''}>Class summary only</option>${S.learners.map(l=>`<option value="${l.id}" ${repSel===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select><button class="pri" id="print">Print / Save as PDF</button></div><p class="note" style="margin:8px 0 0">Choose “Save as PDF” or print double-sided. You get a summary, then one sheet (both sides) per learner. Blank backs are added so each learner starts on a new sheet.</p></div>${pages}`}
 
+/* ---------- print: summary + one sheet (2 sides) per learner ---------- */
+function unprep(){document.querySelectorAll('.blankpg').forEach(x=>x.remove());document.querySelectorAll('#main .page').forEach(p=>p.style.zoom='')}
+function countPages(p,z){const PH=990;let pg=1,used=0;
+ [...p.children].forEach(c=>{const cs=getComputedStyle(c),h=(c.getBoundingClientRect().height+parseFloat(cs.marginTop)+parseFloat(cs.marginBottom))*z;
+  if(used+h<=PH){used+=h;return}
+  if(h<=PH&&(c.classList.contains('tgtev')||c.classList.contains('sig')||h<PH*0.5)){pg++;used=h;return}
+  let rem=h-(PH-used);pg+=Math.ceil(rem/PH);used=rem-(Math.ceil(rem/PH)-1)*PH});return pg}
+function prepPrint(){if($('#tm').classList.contains('hide'))return;unprep();document.body.classList.add('measuring');
+ [...document.querySelectorAll('#main .page')].forEach(p=>{let z=1,n=countPages(p,1);while(n>2&&z>0.55){z-=0.05;n=countPages(p,z)}
+  if(z<1)p.style.zoom=z.toFixed(2);
+  if(n===1)p.insertAdjacentHTML('afterend','<section class="page blankpg"><p class="note" style="text-align:center;margin-top:45%">This side is intentionally blank.</p></section>')});
+ document.body.classList.remove('measuring')}
+window.addEventListener('beforeprint',()=>{if(!document.querySelector('.blankpg'))prepPrint()});window.addEventListener('afterprint',unprep);
 /* ---------- backup status ---------- */
 function doBackup(){S.dirty=false;S.lastBackup=Date.now();const d=new Date();download(`RARPA backup ${S.cls.name||'class'} ${today()} ${pad(d.getHours())}${pad(d.getMinutes())}.json`,JSON.stringify({type:'rarpa-backup',data:S}),'application/json');saveNow();bkStat();toast('Backup saved – keep it in your OneDrive')}
 function bkStat(){const e=document.getElementById('bkStat');if(!e)return;if(S.dirty){e.textContent='⚠ Not backed up – click to save';e.style.cssText='background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:700'}else{e.textContent=S.lastBackup?`✔ Backed up ${new Date(S.lastBackup).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`:'✔ Nothing to back up';e.style.cssText='color:var(--good)'}}
@@ -635,7 +652,7 @@ tm.addEventListener('click',e=>{const rmi=e.target.closest('[data-rmid]');if(rmi
  if(b.id==='bEdit'){view='edit';render();return}
  if(b.id==='bTasks'){view='tasks';render();return}
  if(b.id==='bReport'){view='report';render();return}
- if(b.id==='print'){window.print();return}
+ if(b.id==='print'){prepPrint();window.print();return}
  if(b.id==='bImport'){$('#fImport').click();return}
  if(b.id==='bBackup'||b.id==='bkStat'){doBackup();return}
  if(b.id==='bCsv'){exportCsv();return}
