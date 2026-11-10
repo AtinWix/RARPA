@@ -105,7 +105,7 @@ td.ok{background:var(--goodbg)}td.no{background:var(--badbg)}
 .hl{background:#fff3c4;border-left:4px solid #e0b100;padding:6px 10px;border-radius:4px;margin:6px 0;font-size:15px}
 .ev{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
 .ev h5{margin:0 0 4px;font-size:14px}
-.mini svg{width:46px;height:46px;vertical-align:middle}
+.mini svg{width:56px;height:56px;vertical-align:middle}
 .chart{display:flex;gap:8px;align-items:flex-end;height:90px;margin:6px 0 2px;padding-bottom:2px;border-bottom:1px solid var(--line)}
 .chart div{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:11px;color:var(--muted)}
 .chart i{display:block;width:30px;background:var(--brand);border-radius:4px 4px 0 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -532,6 +532,11 @@ function reportLearner(l){const c=S.cls,ts=l.targets.filter(t=>t.text);
   return`<div class="tgtev"><h3>Target ${i+1}: ${esc(t.text)}</h3>${highlight(l,t)?`<div class="hl">${highlight(l,t)}</div>`:''}
   <div class="chart">${ch.map(a=>`<div><b>${a.score}/${a.max}</b><i style="height:${Math.max(4,a.score/a.max*60)}px"></i>${shortDate(a.date)}</div>`).join('')}</div><p class="note" style="margin:0">All checks in date order.</p>
   <div class="ev"><div><h5>Start check – ${first?ukDate(first.date):''}</h5>${first?evTable(first):''}</div><div><h5>${last&&last!==first?`Latest check – ${ukDate(last.date)}`:'Latest check'}</h5>${last&&last!==first?evTable(last):'<p class="note">Not done yet.</p>'}</div></div></div>`}).join('')}
+ ${(()=>{const tt=ts.map(t=>t.task),other=[...new Set(l.attempts.filter(a=>a.mode==='check'&&!tt.includes(a.task)).map(a=>a.task))];if(!other.length)return'';
+  return`<h3 style="margin-top:18px">${ts.length?'Other checks':'Evidence from checks'}${ts.length?'':' <span class="note">(no targets set yet)</span>'}</h3>`+other.map(id=>{const ch=l.attempts.filter(a=>a.task===id&&a.mode==='check').sort((a,b)=>a.date<b.date?-1:1),first=ch[0],last=ch.length>1?ch[ch.length-1]:null,d=last?last.score-first.score:null;
+  return`<div class="tgtev"><h3>${taskInfo(id).icon} ${esc(taskInfo(id).title)}</h3>${last?`<div class="hl">${esc(l.name.split(' ')[0])} scored <b>${first.score}/${first.max}</b> on ${ukDate(first.date)} and <b>${last.score}/${last.max}</b> on ${ukDate(last.date)} (${d>0?'up '+d:d===0?'no change':'down '+(-d)}).</div>`:''}
+  <div class="chart">${ch.map(a=>`<div><b>${a.score}/${a.max}</b><i style="height:${Math.max(4,a.score/a.max*60)}px"></i>${shortDate(a.date)}</div>`).join('')}</div>
+  <div class="ev"><div><h5>First check – ${ukDate(first.date)}</h5>${evTable(first)}</div><div><h5>${last?`Latest check – ${ukDate(last.date)}`:'Latest check'}</h5>${last?evTable(last):'<p class="note">Not done yet.</p>'}</div></div></div>`}).join('')})()}
  <div class="row" style="margin-top:12px;grid-template-columns:1fr 1fr"><div><b>Learner comment</b><p>${esc(l.learnerNote)||'–'}</p></div><div><b>Teacher comment / next steps</b><p>${esc(l.teacherNote)||'–'}</p></div></div>
  <div class="sig"><div>Learner signature</div><div>Teacher signature</div><div>Date</div></div></section>`}
 function evTable(a){if(a.task==='write')return`<p class="note" style="margin:0 0 4px">${esc(a.items[0].q)} · ${esc(a.level||'')} · ${a.tmark!=null&&a.tmark!==''?`teacher mark ${a.tmark}/5`:`auto-check ${a.score}/5`}</p>${writeBlock(a.items[0].a,a.level)}`;return`<table><tr><th>Question</th><th>Answer</th></tr>${a.items.map(x=>`<tr><td>${x.svg?`<span class="mini">${x.svg}</span> `:''}${esc(x.q)}</td><td class="${x.ok?'ok':'no'}">${x.ok?'✔':'✘'} ${esc(x.a)}${x.ok?'':`<br><span class="note">➜ ${esc(x.c)}</span>`}</td></tr>`).join('')}</table>`}
