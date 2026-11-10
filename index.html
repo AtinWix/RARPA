@@ -192,9 +192,11 @@ const FACES=[['😟','I can’t'],['🙁','A little'],['😐','Sometimes'],['�
 
 /* ---------- storage ---------- */
 const KEY='rarpa-tasks-v2';
+const DEFAULT_FORM='https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=mUft038080m159qCPJXo2Y1qZCuioLZMr502V7pP7tRUMzQ2TDlLWjEwMTZPNjdKTUlMWkRFVkw3NSQlQCNjPTEu&rc9dfa2c6731d4979a3e9533bd4485c07=NAME&rf50c2f0507a74e458057ea3e4341eca9=TASK&rc73d1e972051428bb9b892d689b3ccef=SCORE&rfa329034236d4d74b3f96807c993b099=DATA';
 function blank(){return{cls:{name:'',level:'E1',teacher:'Atin',college:'New City College – Hackney',year:'2026–27',pin:'',items:5},learners:[],custom:[]}}
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&Array.isArray(d.learners)){d.custom=d.custom||[];return d}}catch(e){}return blank()}
 let S=load();
+if(!S.cls.form)S.cls.form=DEFAULT_FORM;
 if(CFG){Object.assign(S.cls,{level:CFG.level,items:CFG.items,pin:CFG.pin,name:CFG.name||S.cls.name,form:CFG.form||'',practice:!!CFG.practice});(CFG.custom||[]).forEach(c=>{const i=S.custom.findIndex(x=>x.id===c.id);if(i<0)S.custom.push(c);else S.custom[i]=c})}
 let saveT;function save(quiet){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S));if(!quiet)toast('Saved on this computer')}catch(e){toast('Could not save here – use Save backup')}},250)}
 function saveNow(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
