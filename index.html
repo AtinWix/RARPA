@@ -195,7 +195,7 @@ const KEY='rarpa-tasks-v2';
 function blank(){return{cls:{name:'',level:'E1',teacher:'Atin',college:'New City College – Hackney',year:'2026–27',pin:'',items:5},learners:[],custom:[]}}
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&Array.isArray(d.learners)){d.custom=d.custom||[];return d}}catch(e){}return blank()}
 let S=load();
-if(CFG){Object.assign(S.cls,{level:CFG.level,items:CFG.items,pin:CFG.pin,name:CFG.name||S.cls.name,form:CFG.form||''});(CFG.custom||[]).forEach(c=>{const i=S.custom.findIndex(x=>x.id===c.id);if(i<0)S.custom.push(c);else S.custom[i]=c})}
+if(CFG){Object.assign(S.cls,{level:CFG.level,items:CFG.items,pin:CFG.pin,name:CFG.name||S.cls.name,form:CFG.form||'',practice:!!CFG.practice});(CFG.custom||[]).forEach(c=>{const i=S.custom.findIndex(x=>x.id===c.id);if(i<0)S.custom.push(c);else S.custom[i]=c})}
 let saveT;function save(quiet){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S));if(!quiet)toast('Saved on this computer')}catch(e){toast('Could not save here – use Save backup')}},250)}
 function saveNow(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function newLearner(name){return{id:uid(),name:tidyName(name),targets:[],attempts:[],teacherNote:'',learnerNote:''}}
@@ -336,7 +336,7 @@ function lTasks(){
  const vis=ids.filter(okLv),sorted=[...vis.filter(i=>mine.includes(i)),...vis.filter(i=>!mine.includes(i))];
  lm.innerHTML=`<div class="lbar"><button id="lBackHome">← Back</button><b style="font-size:22px">${esc(R.name)}</b>${logoHTML}</div>
  <div class="lwrap"><div class="lvbar">My level: ${LEVELS.map(x=>`<button data-lv="${x}" class="${x===lv?'pri':''}">${x}</button>`).join('')}</div><h2>Choose a task</h2><div class="tgrid">${sorted.map(id=>{const t=taskInfo(id),n=l?l.attempts.filter(a=>a.task===id).length:0;return`<button class="tcard" data-task="${id}" ${mine.includes(id)?'style="border-color:var(--brand)"':''}><em>${t.icon}</em>${esc(t.title)}${mine.includes(id)?'<small>⭐ My target</small>':''}${n?`<small>Done ${n}×</small>`:''}</button>`}).join('')}</div></div>`}
-function lMode(id){const t=taskInfo(id);
+function lMode(id){const t=taskInfo(id);if(!S.cls.practice){lStart(id,'check');return}
  lm.innerHTML=`<div class="lbar"><button id="lBackTasks">← Back</button><b style="font-size:22px">${esc(R.name)}</b>${logoHTML}</div>
  <div class="lwrap"><div style="font-size:70px">${t.icon}</div><h2>${esc(t.title)}</h2><p style="font-size:22px">${esc(t.target)}</p>
  <div class="flexbar" style="justify-content:center;gap:18px;margin-top:20px">
@@ -387,7 +387,7 @@ function lDone(feel){
  ${isW?`<div style="max-width:820px;margin:0 auto;font-size:20px">${writeBlock(att.items[0].a,lv,true)}</div><p class="note" style="font-size:16px">This is a computer check. Your teacher will also mark your writing.</p>`:`<table class="review">${att.items.map(x=>`<tr><td style="width:44px;text-align:center;font-size:24px;background:${x.ok?'var(--goodbg)':'var(--badbg)'}">${x.ok?'✔':'✘'}</td><td>${x.svg?`<span class="mini">${x.svg}</span> `:''}${esc(x.a)}${x.ok?'':`<br><span style="color:var(--good)">➜ ${esc(x.c)}</span>`}</td></tr>`).join('')}</table>`}
  <div class="flexbar" style="justify-content:center;margin-top:16px;gap:14px">
  ${R.mode==='check'&&!R.preview&&formLink(R.name,att)?'<button class="big pri" id="lForm">📨 Send to my teacher</button>':''}<button class="big" id="lPrint">🖨️ Print / save PDF</button>
- <button class="big" id="lAgain">🔁 Practise again</button><button class="big" id="lOther">Another task</button><button class="big" id="lFinish">Finish</button></div>
+ ${S.cls.practice||R.preview?'<button class="big" id="lAgain">🔁 Practise again</button>':''}<button class="big" id="lOther">Another task</button><button class="big" id="lFinish">Finish</button></div>
  ${R.mode==='check'&&!R.preview?(formLink(R.name,att)?'<p style="font-size:20px">Click <b>📨 Send to my teacher</b>, then click <b>Submit</b> on the form.</p>':'<p class="note" style="font-size:16px">Your result is saved on this computer. To send it, click <b>Print / save PDF</b>, choose “Save as PDF” and hand it in on Teams.</p>'):''}</div>`}
 function packAtt(name,a){return JSON.stringify({v:1,n:name,id:a.id,t:a.task,tt:a.taskTitle,lv:a.level,m:a.mode,d:a.date,s:a.score,x:a.max,f:a.feel,sec:a.secs,i:a.items.map(x=>[String(x.q).slice(0,a.task==='write'?220:90),String(x.a).slice(0,a.task==='write'?2000:90),String(x.c).slice(0,90),x.ok?1:0])})}
 function unpackAtt(o){return{auto:o.t==='write'?o.s:undefined,id:o.id,task:o.t,taskTitle:o.tt,level:o.lv,mode:o.m,date:o.d,score:o.s,max:o.x,feel:o.f,secs:o.sec||0,items:(o.i||[]).map(([q,a,c,ok])=>{const m=/^Clock shows (\d+):(\d+)/.exec(q);return{q,a,c,ok:!!ok,svg:m?clock(+m[1],+m[2],60):''}})}}
@@ -455,6 +455,7 @@ function renderClass(){const c=S.cls;
  <div class="priv">🔒 Names and results stay in this browser on this computer. Nothing is sent online. Result files that learners save are only as private as where they're kept (e.g. your Teams assignment or OneDrive).</div>
  <div class="row"><div><label>Class name</label><input data-c="name" value="${esc(c.name)}" placeholder="e.g. E1 Tuesday"></div><div><label>Task level</label><select data-c="level">${opt(LEVELS,c.level)}</select></div><div><label>Questions per task</label><input type="number" min="3" max="10" data-c="items" value="${esc(c.items)}"></div></div>
  <div class="row"><div><label>Teacher</label><input data-c="teacher" value="${esc(c.teacher)}"></div><div><label>College / site</label><input data-c="college" value="${esc(c.college)}"></div><div><label>Academic year</label><input data-c="year" value="${esc(c.year)}"></div><div><label>Teacher PIN (optional)</label><input data-c="pin" value="${esc(c.pin)}" inputmode="numeric"></div></div>
+ <p><label style="display:inline-flex;gap:8px;align-items:center;font-size:15px;color:var(--ink)"><input type="checkbox" id="pracT" style="width:auto" ${c.practice?'checked':''}> Let learners practise between checks (off = learners only do checks)</label></p>
  <h3>Send results automatically (Microsoft Forms)</h3>
  <div class="row"><div><label>Your Form’s pre-filled link</label><input data-c="form" value="${esc(c.form||'')}" placeholder="https://forms.office.com/Pages/ResponsePage.aspx?id=…"></div></div>
  <p class="note" style="margin-top:-4px">${c.form?(formLink('x',{taskTitle:'t',mode:'check',score:1,max:1,items:[]})?'✅ Link works – learners will see <b>📨 Send to my teacher</b>. Make a new student copy.':'⚠️ This isn’t a Forms pre-filled link with NAME, TASK, SCORE and DATA in it.'):''}</p>
@@ -467,7 +468,7 @@ function renderClass(){const c=S.cls;
  <ol class="note" style="line-height:1.55">
  <li><b>Set targets.</b> Add your RARPA learners and give each 2–3 targets. Link each target to a task: Time, Money, Days &amp; months, Capital letters, Word order or Signs. You can also add your own tasks under <b>Tasks</b>.</li>
  <li><b>Get it onto the student PCs.</b> Click <b>Make student copy</b> and put that file in Teams. Learners open it, type their name and choose a task. Every attempt gives a new version of equal difficulty.</li>
- <li><b>Checks and practice.</b> Learners do a <b>Check</b> at the start, middle and end of the course, and <b>Practise</b> as often as they like. Check answers are recorded but not shown until the end. Practice shows the answers straight away.</li>
+ <li><b>Checks.</b> Learners do the same task at the start, middle and end of the course, and each time it's a new version of equal difficulty. Practice between checks is optional (the tick box above).</li>
  <li><b>Collect the results.</b> With your Form link set (below), learners click <b>📨 Send to my teacher</b> and then <b>Submit</b>. Import the Form’s Excel file here. Without a Form, learners click <b>Print / save PDF</b> and hand the PDF in on Teams. If they used your PC, the results are already here.</li>
  <li><b>Levels and writing.</b> Learners pick their level (E1–L1) on the task screen. <b>Writing</b> is an open task. The computer checks length, capital letters, full stops, linking words and paragraphs, and highlights them. You give the real mark (0–5) under <b>Answers</b> on the learner’s page, and your mark replaces the auto-check.</li>
  <li><b>Start, middle and end scores.</b> These are filled in automatically from the first, middle and latest checks. You can choose a different attempt for any stage.</li>
@@ -571,12 +572,12 @@ function exportCsv(){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   STAGES.forEach(([k])=>r.push(s[k]?ukDate(s[k].date):'',s[k]?`${s[k].score}/${s[k].max}`:''));const last=s.final||s.review;
   r.push(fmtCh(change(l,t)),l.attempts.filter(a=>a.task===t.task&&a.mode==='practice').length,s.initial&&s.initial.feel?FACES[s.initial.feel-1][1]:'',last&&last.feel?FACES[last.feel-1][1]:'',status(l,t)[0]);rows.push(r)}));
  download(`RARPA ${S.cls.name||'class'} ${today()}.csv`,'﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n'),'text/csv')}
-function cfgObj(){return{level:S.cls.level,items:S.cls.items,pin:S.cls.pin,name:S.cls.name,form:S.cls.form||'',custom:S.custom}}
+function cfgObj(){return{level:S.cls.level,items:S.cls.items,pin:S.cls.pin,name:S.cls.name,form:S.cls.form||'',practice:!!S.cls.practice,custom:S.custom}}
 function studentLink(){const b=btoa(unescape(encodeURIComponent(JSON.stringify(cfgObj())))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
  const base=location.href.split('#')[0].split('?')[0];const url=base+'#cfg='+b;
  if(!/^https:/.test(base)){toast('Student link only works on the web version – use Make student copy');return}
  (navigator.clipboard?navigator.clipboard.writeText(url):Promise.reject()).then(()=>toast('Student link copied – paste it into Teams'),()=>prompt('Copy this link into Teams:',url))}
-function studentCopy(){const M='/*'+'CFG*/';const cfg={level:S.cls.level,items:S.cls.items,pin:S.cls.pin,name:S.cls.name,form:S.cls.form||'',custom:S.custom};
+function studentCopy(){const M='/*'+'CFG*/';const cfg=cfgObj();
  const i=SRC.indexOf(M),j=SRC.indexOf(M,i+M.length);if(i<0||j<0){toast('Could not make copy');return}
  const html='<!doctype html>\n'+SRC.slice(0,i)+M+JSON.stringify(cfg).replace(/</g,'\\u003c')+SRC.slice(j);
  download(`RARPA Progress Tasks – ${S.cls.level} – Student copy.html`,html,'text/html');toast('Student copy downloaded – put it in Teams')}
@@ -619,6 +620,7 @@ tm.addEventListener('input',e=>{const el=e.target,l=L();
  if(el.dataset.mf){const t=l.targets[+el.dataset.t];t.manual[el.dataset.s]=t.manual[el.dataset.s]||{};t.manual[el.dataset.s][el.dataset.mf]=el.value;save();return}});
 tm.addEventListener('change',e=>{const el=e.target,l=L();
  if(el.id==='repSel'){repSel=el.value;render();return}
+ if(el.id==='pracT'){S.cls.practice=el.checked;save();toast(el.checked?'Practice on – make a new student copy/link':'Practice off – make a new student copy/link');return}
  if(el.id==='fImport'){const sheets=[...el.files].filter(f=>/\.(xlsx|csv)$/i.test(f.name));if(sheets.length){importSheets(sheets);el.value='';return}const fs=[...el.files];let msgs=[],left=fs.length;fs.forEach(f=>{const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);msgs.push(mergeData(d))}catch(x){msgs.push(f.name+': not a results file')}if(--left===0){save(true);render();toast(msgs.length>1?`${fs.length} files: `+msgs.join('; ').slice(0,120):msgs[0])}};r.readAsText(f)});el.value='';return}
  if(el.dataset.c==='level'||el.dataset.c==='items'){render();return}
  if(el.dataset.cu){render();return}
